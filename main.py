@@ -23,9 +23,7 @@ outputNodes = 10
 
 learningRate = 0.1
 alpha = 1
-
-hiddenNodesWeights = [[random.random() for _ in range(inputNodes)] for _ in range(hiddenNodes)]
-outputNodesWeights = [[random.random() for _ in range(hiddenNodes)] for _ in range(outputNodes)]
+batchSize = 32
 
 outputNodesBias = [0]*outputNodes
 
@@ -51,6 +49,17 @@ def dataPreprocessing(x,y):
 
     return tempTensorx, tempTensory
 
+def dataloading(trainX, trainY, testX, testY):
+    #convert tensors into pairs of input + output tensors
+    trainingDataset = TensorDataset(trainX, trainY)
+    testingDataset = TensorDataset(testX,testY)
+
+    #convert individual data tensors into a larger dataset (loaders)
+    trainingLoader = DataLoader(trainingDataset, batch_size=batchSize, shuffle=True)
+    testingLoader = DataLoader(testingDataset, batch_size=batchSize, shuffle=True)
+
+    return trainingLoader, testingLoader
+
 #Main
 def main():
     startTraining()
@@ -66,16 +75,17 @@ def main():
     y = digits.target
 
     #Function for splitting data set up and holding some data points in reserve for data validation  and credibility during report writing
-    X_train, X_test, y_train, y_test = train_test_split(
+    trainX, testX, trainY, testY = train_test_split(
     x, y, 
     test_size=0.2,
     random_state=42,
     stratify=y
     )
 
+    trainingTensorsx, trainingTensorsy = dataPreprocessing(trainX, trainY)
+    testingTensorsx, testingTensorsy = dataPreprocessing(testX, testY)
 
-
-
+    trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
 
 
 
