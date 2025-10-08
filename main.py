@@ -21,7 +21,7 @@ inputNodes = 64
 hiddenNodes = 64
 outputNodes = 10
 
-learningRate = 0.1
+learningRate = 0.4
 alpha = 1
 batchSize = 32
 
@@ -29,7 +29,10 @@ digits = load_digits()
 
 #Function definitions
 def ELU(x):
-    return x if x > 0 else alpha*math.exp(x) - 1
+    return torch.where(x > 0, x, alpha * torch.exp(x) - 1)
+
+def ELUDerivative(x):
+    return torch.where(x > 0, torch.ones_like(x), alpha * torch.exp(x))
 
 def normalise(x):
     return x/16.0
@@ -77,6 +80,28 @@ def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputB
 
     return outputInputs, hiddenOutputs
 
+#Training loop definitions
+def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
+    #Loop through batches with forward pass
+    for batch_idx, (data, targets) in enumerate(loader):
+        print(f"Batch {batch_idx}:")
+        print(f"Input data shape: {data.shape}")  # [32, 64]
+        print(f"Targets shape: {targets.shape}")  # [32]
+
+        outputs, hiddenActivations = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+
+        print(f"Hidden activations shape: {hiddenActivations.shape}")  # [32, 64]
+        print(f"Output logits shape: {outputs.shape}")  # [32, 10]
+        print(f"Sample output: {outputs[0]}")
+
+#Loss calculations
+def loss(outputs, targets):
+        return F.cross_entropy(outputs, targets)
+
+#Backward propagation definitions
+def backwardsPropagation(inputs, hiddenOutputs, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias):
+
+
 #Main
 def main():
     # Access the data and labels
@@ -96,7 +121,10 @@ def main():
 
     trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
 
-    hidden_weights, output_weights, hidden_bias, output_bias = startTraining()
+    hiddenWeights, outputWeights, hiddenBias, outputBias = startTraining()
+
+    trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
+
 
     # Display the first image
     plt.figure(figsize=(8, 6))
