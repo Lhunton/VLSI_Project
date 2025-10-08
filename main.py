@@ -25,8 +25,6 @@ learningRate = 0.1
 alpha = 1
 batchSize = 32
 
-outputNodesBias = [0]*outputNodes
-
 digits = load_digits()
 
 #Function definitions
@@ -39,6 +37,9 @@ def normalise(x):
 def startTraining():
     hiddenNodesWeights = torch.rand(inputNodes,hiddenNodes)
     outputNodesWeights = torch.rand(hiddenNodes,outputNodes)
+    hiddenNodesBias = torch.zeros(hiddenNodes)
+    outputNodesBias = torch.zeros(outputNodes)
+    return hiddenNodesWeights,outputNodesWeights,hiddenNodesBias,outputNodesBias
 
 #Data processing definitions
 def dataPreprocessing(x,y):
@@ -60,16 +61,24 @@ def dataloading(trainX, trainY, testX, testY):
 
     return trainingLoader, testingLoader
 
+#Forward propagation definitions
+def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputBias):
+    #matrix multiplication of hidden layer
+    hiddenInputs = torch.matmul(inputs, hiddenWeights) + hiddenBias
+    hiddenOutputs = torch.zeros_like(hiddenInputs)
+
+    #Activation function applications
+    for i in range(hiddenInputs.shape[0]):
+        for j in range(hiddenInputs.shape[1]):
+            hiddenOutputs[i,j] = ELU(hiddenInputs[i,j])
+
+    #matrix multiplication of output layer
+    outputInputs = torch.matmul(hiddenOutputs, outputWeights) + outputBias
+
+    return outputInputs, hiddenOutputs
+
 #Main
 def main():
-    startTraining()
-
-    print("Available keys:", digits.keys())
-    print("Data shape:", digits.data.shape)
-    print("Target shape:", digits.target.shape)
-    print("Feature names:", digits.feature_names)
-    print("Target names:", digits.target_names)
-
     # Access the data and labels
     x = digits.data
     y = digits.target
@@ -87,9 +96,7 @@ def main():
 
     trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
 
-
-
-
+    hidden_weights, output_weights, hidden_bias, output_bias = startTraining()
 
     # Display the first image
     plt.figure(figsize=(8, 6))
