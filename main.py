@@ -21,9 +21,10 @@ inputNodes = 64
 hiddenNodes = 64
 outputNodes = 10
 
-learningRate = 0.4
+learningRate = 0.1
 alpha = 1
 batchSize = 32
+epochs = 10
 
 digits = load_digits()
 
@@ -82,32 +83,99 @@ def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputB
 
 #Training loop definitions
 def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
-    #Loop through batches with forward pass
-    for batch_idx, (data, targets) in enumerate(loader):
-        print(f"Batch {batch_idx}:")
-        print(f"Input data shape: {data.shape}")  # [32, 64]
-        print(f"Targets shape: {targets.shape}")  # [32]
+    losses = []
+    accuracies = []
 
-        outputs, hiddenActivations = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+    #an epoch is 1 complete pass of data
+    for epoch in range(epochs):
+        
 
-        print(f"Hidden activations shape: {hiddenActivations.shape}")  # [32, 64]
-        print(f"Output logits shape: {outputs.shape}")  # [32, 10]
-        print(f"Sample output: {outputs[0]}")
+        #Loop through batches with forward pass
+        for batch_idx, (data, targets) in enumerate(loader):
+            totalLoss = 0
+            correctPredictions = 0
+            totalSamples = 0
+
+            #Forward pass
+            outputs, hiddenActivations = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+
+            #loss calcs
+            batchLoss = loss(outputs, targets)
+            totalLoss += batchLoss.item()
+
+            #Calculate accuracy for this batch
+            predictions = torch.argmax(outputs, dim=1)
+            correctPredictions += (predictions == targets).sum().item()
+            totalSamples += targets.size(0)
+
+            #backward pass
+            hiddenWeightsGradient, outputWeightsGradient, hiddenBiasGradient, outputBiasGradient = backwardsPropagation(data, hiddenActivations, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias)
+                        
+            # Update weights
+            hiddenWeights, outputWeights, hiddenBias, outputBias = updateWeights(hiddenWeights, outputWeights, hiddenBias, outputBias,hiddenWeightsGradient, outputWeightsGradient,hiddenBiasGradient, outputBiasGradient)
+
+        # Epoch statistics
+        avgLoss = totalLoss / len(loader)
+        accuracy = correctPredictions / totalSamples
+        losses.append(avgLoss)
+        accuracies.append(accuracy)
+            
+        print(f'Epoch {epoch+1}/{epochs}, Loss: {avgLoss:.4f}, Accuracy: {accuracy:.4f}')
+        
+    return hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies
+
 
 #Loss calculations
 def loss(outputs, targets):
         return F.cross_entropy(outputs, targets)
 
-#Backward propagation definitions
+#Backward propagation definitions (WHY IS THIS SO HARD?? MAYBE BCS I CANT ACTUALLY READ THE TENSORS?!?!!)
 def backwardsPropagation(inputs, hiddenOutputs, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias):
     #Converts output values into a normalised so the sum of the values = 1
     targetSoftmax = F.softmax(outputs, dim=1)
     #creates array full of 0's and 1 where the largest value is (this is the systems answer)
-    targetOnehot = F.one_hot(targets)
+    targetOnehot = F.one_hot(targets, num_classes=outputNodes)
 
-    outputError = targetSoftmax - targetOnehot
+    outputError = (targetSoftmax - targetOnehot.float()) / batchSize
 
+    #Gradients calculation
+    outputWeightsGradient = torch.matmul(hiddenOutputs.t(), outputError)
+    outputBiasGradient = torch.sum(outputError, dim=0)
     
+    hiddenError = torch.matmul(outputError, outputWeights.t())
+
+    #Now apply ELU derivative
+    hiddenInputs = torch.matmul(inputs, hiddenWeights) + hiddenBias
+    hiddenError *= ELUDerivative(hiddenInputs)
+
+    hiddenWeightsGradient = torch.matmul(inputs.t(), hiddenError)
+    hiddenBiasGradient = torch.sum(hiddenError, dim=0)
+
+    return hiddenWeightsGradient, outputWeightsGradient, hiddenBiasGradient, outputBiasGradient
+
+#updates weight function to apply gradients to current loops weights and biases
+def updateWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, hiddenWeightGradient, outputWeightsGradient, hiddenBiasGradient, outputBiasGradient):
+    hiddenWeights -= learningRate * hiddenWeightGradient
+    outputWeights -= learningRate * outputWeightsGradient
+    hiddenBias -= learningRate * hiddenBiasGradient
+    outputBias -= learningRate * outputBiasGradient
+
+    return hiddenWeights, outputWeights, hiddenBias, outputBias
+
+#Function def for data analysis
+def evaluateModel(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
+    correctPredictions = 0
+    totalPredictions = 0
+
+    for data, targets in loader:
+        outputs, _ = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+        predictions = torch.argmax(outputs, dim=1)
+        correctPredictions += (predictions == targets).sum().item()
+        totalPredictions += targets.size(0)
+
+    accuracy = correctPredictions/totalPredictions
+    print(f'Test accuracy: {accuracy:.4f}')
+    return accuracy
 
 #Main
 def main():
@@ -130,8 +198,27 @@ def main():
 
     hiddenWeights, outputWeights, hiddenBias, outputBias = startTraining()
 
-    trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
+    hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies = trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
 
+    test_accuracy = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
+
+    # Plot training progress
+    plt.figure(figsize=(12, 4))
+    
+    plt.subplot(1, 2, 1)
+    plt.plot(losses)
+    plt.title('Training Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    
+    plt.subplot(1, 2, 2)
+    plt.plot(accuracies)
+    plt.title('Training Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    
+    plt.tight_layout()
+    plt.show()
 
     # Display the first image
     plt.figure(figsize=(8, 6))
