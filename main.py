@@ -100,7 +100,14 @@ def loss(outputs, targets):
 
 #Backward propagation definitions
 def backwardsPropagation(inputs, hiddenOutputs, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias):
+    #Converts output values into a normalised so the sum of the values = 1
+    targetSoftmax = F.softmax(outputs, dim=1)
+    #creates array full of 0's and 1 where the largest value is (this is the systems answer)
+    targetOnehot = F.one_hot(targets)
 
+    outputError = targetSoftmax - targetOnehot
+
+    
 
 #Main
 def main():
