@@ -21,7 +21,7 @@ inputNodes = 64
 hiddenNodes = 64
 outputNodes = 10
 
-learningRate = 0.1
+learningRate = 0.075
 alpha = 1
 batchSize = 32
 epochs = 10
@@ -39,8 +39,8 @@ def normalise(x):
     return x/16.0
 
 def startTraining():
-    hiddenNodesWeights = torch.rand(inputNodes,hiddenNodes)
-    outputNodesWeights = torch.rand(hiddenNodes,outputNodes)
+    hiddenNodesWeights = torch.rand(inputNodes,hiddenNodes) * math.sqrt(2/inputNodes)
+    outputNodesWeights = torch.rand(hiddenNodes,outputNodes) * math.sqrt(2/hiddenNodes)
     hiddenNodesBias = torch.zeros(hiddenNodes)
     outputNodesBias = torch.zeros(outputNodes)
     return hiddenNodesWeights,outputNodesWeights,hiddenNodesBias,outputNodesBias
@@ -72,9 +72,7 @@ def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputB
     hiddenOutputs = torch.zeros_like(hiddenInputs)
 
     #Activation function applications
-    for i in range(hiddenInputs.shape[0]):
-        for j in range(hiddenInputs.shape[1]):
-            hiddenOutputs[i,j] = ELU(hiddenInputs[i,j])
+    hiddenOutputs = ELU(hiddenInputs)
 
     #matrix multiplication of output layer
     outputInputs = torch.matmul(hiddenOutputs, outputWeights) + outputBias
@@ -88,17 +86,15 @@ def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
 
     #an epoch is 1 complete pass of data
     for epoch in range(epochs):
-        
+        totalLoss = 0
+        correctPredictions = 0
+        totalSamples = 0   
 
         #Loop through batches with forward pass
-        for batch_idx, (data, targets) in enumerate(loader):
-            totalLoss = 0
-            correctPredictions = 0
-            totalSamples = 0
-
+        for batchIdx, (data, targets) in enumerate(loader):
             #Forward pass
             outputs, hiddenActivations = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
-
+            
             #loss calcs
             batchLoss = loss(outputs, targets)
             totalLoss += batchLoss.item()
@@ -184,12 +180,7 @@ def main():
     y = digits.target
 
     #Function for splitting data set up and holding some data points in reserve for data validation  and credibility during report writing
-    trainX, testX, trainY, testY = train_test_split(
-    x, y, 
-    test_size=0.2,
-    random_state=42,
-    stratify=y
-    )
+    trainX, testX, trainY, testY = train_test_split(x, y, test_size=0.2, random_state=42, stratify=y)
 
     trainingTensorsx, trainingTensorsy = dataPreprocessing(trainX, trainY)
     testingTensorsx, testingTensorsy = dataPreprocessing(testX, testY)
@@ -218,14 +209,6 @@ def main():
     plt.ylabel('Accuracy')
     
     plt.tight_layout()
-    plt.show()
-
-    # Display the first image
-    plt.figure(figsize=(8, 6))
-    plt.imshow(digits.images[0], cmap='gray')
-    plt.title(f"Digit: {digits.target[0]}")
-    plt.colorbar()
-    print(digits.images[0])
     plt.show()
 
 if __name__ == "__main__":
