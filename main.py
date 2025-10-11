@@ -21,10 +21,10 @@ inputNodes = 64
 hiddenNodes = 64
 outputNodes = 10
 
-learningRate = 0.075
+learningRate = 0.14
 alpha = 1
 batchSize = 32
-epochs = 10
+epochs = 50
 
 digits = load_digits()
 
@@ -61,7 +61,7 @@ def dataloading(trainX, trainY, testX, testY):
 
     #convert individual data tensors into a larger dataset (loaders)
     trainingLoader = DataLoader(trainingDataset, batch_size=batchSize, shuffle=True)
-    testingLoader = DataLoader(testingDataset, batch_size=batchSize, shuffle=True)
+    testingLoader = DataLoader(testingDataset, batch_size=batchSize, shuffle=False)
 
     return trainingLoader, testingLoader
 
