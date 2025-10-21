@@ -195,10 +195,6 @@ def analyseTestSet(loader, hiddenWeights, outputWeights, hiddenBias, outputBias)
     print(f"Wrong predictions: {len(wrong_indices)}")
     print(f"Wrong indices: {wrong_indices}")
     print(f"Wrong predictions vs targets: {list(zip(wrong_predictions, wrong_targets))}")
-    
-    # Check if it's always the same samples
-    if len(wrong_indices) > 0:
-        print(f"Consistent error pattern: {len(set(wrong_indices)) == len(wrong_indices)}")
 
 #Main
 def main():
@@ -220,7 +216,7 @@ def main():
 
     analyseTestSet(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
 
-    #test_accuracy = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
+    test_accuracy = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
 
     # Plot training progress
     plt.figure(figsize=(12, 4))
