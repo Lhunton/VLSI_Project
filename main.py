@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 import math
+import json
 
 torch.manual_seed(6)
 
@@ -274,6 +275,22 @@ def plotResults(all_results):
         final_test_acc = results_dict['testAccuracies']
         print(f"{activation_name:8} | Train Acc: {final_train_acc:.4f} | Test Acc: {final_test_acc:.4f} | Wrong Predictions: {360 - int(final_test_acc * 360)}")
 
+def exportWeights(hiddenWeight, outputWeights, hiddenBias, outputBias, activationName, filename=""):
+    
+    weights = {
+        'activationFunction': activationName,
+        'nodeArchitecture': f"{inputNodes}-{hiddenNodes}-{outputNodes}",
+        'hiddenWeights': hiddenWeight.tolist(),
+        'outputWeights': outputWeights.tolist(),
+        'hiddenBias': hiddenBias.tolist(),
+        'outputBias': outputBias.tolist(),
+    }
+
+    with open(f"{filename}Weights_{activationName}.json","w") as f:
+        json.dump(weights, f, indent=2)
+
+    print(f"Weights Exported")
+
 #Main
 def main():
     # Access the data and labels
@@ -308,6 +325,8 @@ def main():
             'accuracies': accuracies,
             'testAccuracies': testAccuracies
         }
+
+        exportWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
 
     plotResults(results)
 
