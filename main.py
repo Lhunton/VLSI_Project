@@ -17,7 +17,7 @@ torch.manual_seed(6)
 
 #Constant definitions
 inputNodes = 64
-hiddenNodes = 64
+hiddenNodes = 64 #101 and 17 are weirdly optimal
 outputNodes = 10
 
 learningRate = 0.14
@@ -28,6 +28,18 @@ epochs = 50
 digits = load_digits()
 
 #Function definitions
+#activation functions
+activationFunctions = {
+    'ELU': (lambda x: torch.where(x > 0, x, alpha * torch.exp(x) - 1),
+            lambda x: torch.where(x > 0, torch.ones_like(x), alpha * torch.exp(x))),
+
+    'ReLu': (lambda x: torch.maximum(torch.zeros_like(x), x),
+             lambda x: torch.where(x > 0, torch.ones_like(x), torch.zeros_like(x))),
+
+    'Sigmoid': (lambda x: (1/(1+torch.exp(-x))),
+                lambda x: (1/(1+torch.exp(-x))) * (1 - (1/(1+torch.exp(-x))))),
+    }
+
 def ELU(x):
     return torch.where(x > 0, x, alpha * torch.exp(x) - 1)
 
@@ -65,12 +77,13 @@ def dataloading(trainX, trainY, testX, testY):
     return trainingLoader, testingLoader
 
 #Forward propagation definitions
-def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputBias):
+def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName):
     #matrix multiplication of hidden layer
     hiddenInputs = torch.matmul(inputs, hiddenWeights) + hiddenBias
 
     #Activation function applications
-    hiddenOutputs = ELU(hiddenInputs)
+    tempActivationFunction, tempDerivativeFunction = activationFunctions[activationName]
+    hiddenOutputs = tempActivationFunction(hiddenInputs)
 
     #matrix multiplication of output layer
     outputInputs = torch.matmul(hiddenOutputs, outputWeights) + outputBias
@@ -78,7 +91,7 @@ def forwardPropagation(inputs, hiddenWeights, outputWeights, hiddenBias, outputB
     return outputInputs, hiddenOutputs
 
 #Training loop definitions
-def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate):
+def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate, activationName):
     losses = []
     accuracies = []
 
@@ -91,7 +104,7 @@ def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias, l
         #Loop through batches with forward pass
         for batchIdx, (data, targets) in enumerate(loader):
             #Forward pass
-            outputs, hiddenActivations = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+            outputs, hiddenActivations = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
             
             #loss calcs
             batchLoss = loss(outputs, targets)
@@ -103,7 +116,7 @@ def trainingLoop(loader, hiddenWeights, outputWeights, hiddenBias, outputBias, l
             totalSamples += targets.size(0)
 
             #backward pass
-            hiddenWeightsGradient, outputWeightsGradient, hiddenBiasGradient, outputBiasGradient = backwardsPropagation(data, hiddenActivations, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias)
+            hiddenWeightsGradient, outputWeightsGradient, hiddenBiasGradient, outputBiasGradient = backwardsPropagation(data, hiddenActivations, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
 
             # Update weights
             hiddenWeights, outputWeights, hiddenBias, outputBias = updateWeights(hiddenWeights, outputWeights, hiddenBias, outputBias,hiddenWeightsGradient, outputWeightsGradient,hiddenBiasGradient, outputBiasGradient)
@@ -124,9 +137,10 @@ def loss(outputs, targets):
         return F.cross_entropy(outputs, targets)
 
 #Backward propagation definitions (WHY IS THIS SO HARD?? MAYBE BCS I CANT ACTUALLY READ THE TENSORS?!?!!)
-def backwardsPropagation(inputs, hiddenOutputs, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias):
+def backwardsPropagation(inputs, hiddenOutputs, outputs, targets, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName):
     #Converts output values into a normalised so the sum of the values = 1
     targetSoftmax = F.softmax(outputs, dim=1)
+    
     #creates array full of 0's and 1 where the largest value is (this is the systems answer)
     targetOnehot = F.one_hot(targets, num_classes=outputNodes)
 
@@ -140,7 +154,8 @@ def backwardsPropagation(inputs, hiddenOutputs, outputs, targets, hiddenWeights,
 
     #Now apply ELU derivative
     hiddenInputs = torch.matmul(inputs, hiddenWeights) + hiddenBias                                     #dLoss/dHiddenOutputs * dHiddenOutputs/dHiddenInputs
-    hiddenError *= ELUDerivative(hiddenInputs)                                                          #Reverse ELU 
+    tempActivationFunction, tempDerivativeFunction = activationFunctions[activationName]
+    hiddenError *= tempDerivativeFunction(hiddenInputs)                                                          #Reverse ELU 
 
     hiddenWeightsGradient = torch.matmul(inputs.t(), hiddenError)                                       #dLoss/dWeightHidden (how much of the wrongness is from Weight)
     hiddenBiasGradient = torch.sum(hiddenError, dim=0)                                                  #dLoss/dBiasHidden (how much of the wrongness is from bias)
@@ -157,12 +172,12 @@ def updateWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, hiddenWe
     return hiddenWeights, outputWeights, hiddenBias, outputBias
 
 #Function def for data analysis
-def evaluateModel(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
+def evaluateModel(loader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName):
     correctPredictions = 0
     totalPredictions = 0
 
     for data, targets in loader:
-        outputs, _ = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+        outputs, _ = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
         predictions = torch.argmax(outputs, dim=1)
         correctPredictions += (predictions == targets).sum().item()
         totalPredictions += targets.size(0)
@@ -171,7 +186,7 @@ def evaluateModel(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
     print(f'Test accuracy: {accuracy:.20f}')
     return accuracy
 
-def analyseTestSet(loader, hiddenWeights, outputWeights, hiddenBias, outputBias):
+def analyseTestSet(loader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName):
     correct = 0
     total = 0
     wrong_indices = []
@@ -179,7 +194,7 @@ def analyseTestSet(loader, hiddenWeights, outputWeights, hiddenBias, outputBias)
     wrong_targets = []
     
     for batch_idx, (data, targets) in enumerate(loader):
-        outputs, _ = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias)
+        outputs, _ = forwardPropagation(data, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
         predictions = torch.argmax(outputs, dim=1)
         
         for i in range(len(targets)):
@@ -190,11 +205,74 @@ def analyseTestSet(loader, hiddenWeights, outputWeights, hiddenBias, outputBias)
         
         correct += (predictions == targets).sum().item()
         total += targets.size(0)
+        
     
     print(f"Total test samples: {total}")
     print(f"Wrong predictions: {len(wrong_indices)}")
     print(f"Wrong indices: {wrong_indices}")
     print(f"Wrong predictions vs targets: {list(zip(wrong_predictions, wrong_targets))}")
+    
+    # Check if it's always the same samples
+    if len(wrong_indices) > 0:
+        print(f"Consistent error pattern: {len(set(wrong_indices)) == len(wrong_indices)}")
+
+def plotResults(all_results):
+    plt.figure(figsize=(15, 5))
+    
+    # Plot 1: Training Loss
+    plt.subplot(1, 3, 1)
+    colors = {'ELU': 'blue', 'ReLu': 'orange', 'Sigmoid': 'green'}
+    
+    for activation_name, results_dict in all_results.items():
+        plt.plot(results_dict['losses'], label=activation_name, linewidth=2, color=colors.get(activation_name, 'black'))
+    
+    plt.title('Training Loss Comparison')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Plot 2: Training Accuracy
+    plt.subplot(1, 3, 2)
+    for activation_name, results_dict in all_results.items():
+        plt.plot(results_dict['accuracies'], label=activation_name, linewidth=2, color=colors.get(activation_name, 'black'))
+    
+    plt.title('Training Accuracy Comparison')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.ylim(0, 1)  # Set consistent y-axis for accuracy
+    
+    # Plot 3: Final Test Accuracy
+    plt.subplot(1, 3, 3)
+    test_accuracies = [results_dict['testAccuracies'] for results_dict in all_results.values()]
+    activation_names = list(all_results.keys())
+    
+    # Use consistent colors
+    bar_colors = [colors.get(name, 'gray') for name in activation_names]
+    bars = plt.bar(activation_names, test_accuracies, color=bar_colors)
+    
+    plt.title('Final Test Accuracy Comparison')
+    plt.ylabel('Accuracy')
+    plt.ylim(0.9, 1.0)  # Zoom in to see differences better
+    
+    # Add value labels on bars
+    for bar, acc in zip(bars, test_accuracies):
+        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.002, 
+                f'{acc:.4f}', ha='center', va='bottom', fontsize=10)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Print a summary table for clarity
+    print("\n" + "="*60)
+    print("SUMMARY OF RESULTS")
+    print("="*60)
+    for activation_name, results_dict in all_results.items():
+        final_train_acc = results_dict['accuracies'][-1] if results_dict['accuracies'] else 0
+        final_test_acc = results_dict['testAccuracies']
+        print(f"{activation_name:8} | Train Acc: {final_train_acc:.4f} | Test Acc: {final_test_acc:.4f} | Wrong Predictions: {360 - int(final_test_acc * 360)}")
 
 #Main
 def main():
@@ -202,39 +280,36 @@ def main():
     x = digits.data
     y = digits.target
 
+    results = {}
+
     #Function for splitting data set up and holding some data points in reserve for data validation  and credibility during report writing
     trainX, testX, trainY, testY = train_test_split(x, y, test_size=0.2, random_state=1, stratify=y)
 
     trainingTensorsx, trainingTensorsy = dataPreprocessing(trainX, trainY)
     testingTensorsx, testingTensorsy = dataPreprocessing(testX, testY)
 
-    trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
+    for activationName in ['ELU', 'ReLu', 'Sigmoid']:
+        print(f"\n============================================================")
+        print(f"Training with {activationName} activation function")
+        print(f"============================================================")
 
-    hiddenWeights, outputWeights, hiddenBias, outputBias = startTraining()
+        trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
 
-    hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies = trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate)
+        hiddenWeights, outputWeights, hiddenBias, outputBias = startTraining()
 
-    analyseTestSet(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
+        hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies = trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate, activationName)
 
-    test_accuracy = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias)
+        analyseTestSet(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
 
-    # Plot training progress
-    plt.figure(figsize=(12, 4))
-    
-    plt.subplot(1, 2, 1)    
-    plt.plot(losses)
-    plt.title('Training Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(accuracies)
-    plt.title('Training Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    
-    plt.tight_layout()
-    plt.show()
+        testAccuracies = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
+
+        results[activationName] = {
+            'losses': losses,
+            'accuracies': accuracies,
+            'testAccuracies': testAccuracies
+        }
+
+    plotResults(results)
 
 if __name__ == "__main__":
     main()
