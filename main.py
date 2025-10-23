@@ -25,6 +25,8 @@ learningRate = 0.14
 alpha = 1
 batchSize = 32
 epochs = 50
+bitResolution = 16
+quantise = True
 
 digits = load_digits()
 
@@ -275,21 +277,35 @@ def plotResults(all_results):
         final_test_acc = results_dict['testAccuracies']
         print(f"{activation_name:8} | Train Acc: {final_train_acc:.4f} | Test Acc: {final_test_acc:.4f} | Wrong Predictions: {360 - int(final_test_acc * 360)}")
 
-def exportWeights(hiddenWeight, outputWeights, hiddenBias, outputBias, activationName, filename=""):
+def exportWeights(hiddenWeight, outputWeights, hiddenBias, outputBias, activationName, testAccuracy, filename=""):
     
     weights = {
         'activationFunction': activationName,
+        'testAccuracy': testAccuracy,
         'nodeArchitecture': f"{inputNodes}-{hiddenNodes}-{outputNodes}",
+        'bit resolution': bitResolution,
         'hiddenWeights': hiddenWeight.tolist(),
         'outputWeights': outputWeights.tolist(),
         'hiddenBias': hiddenBias.tolist(),
         'outputBias': outputBias.tolist(),
     }
 
-    with open(f"{filename}Weights_{activationName}.json","w") as f:
-        json.dump(weights, f, indent=2)
+    if quantise:
+        with open(f"{filename}Weights_{bitResolution}_{activationName}.json","w") as f:
+            json.dump(weights, f, indent=2)
+    else:
+        with open(f"{filename}Weights_{activationName}.json","w") as f:
+            json.dump(weights, f, indent=2)
 
     print(f"Weights Exported")
+
+def quantisation(values, bits):
+    levels = 2**bits
+    stepSize = 2/levels
+
+    quantisedVals = np.floor(values/stepSize)*stepSize
+
+    return quantisedVals
 
 #Main
 def main():
@@ -316,6 +332,12 @@ def main():
 
         hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies = trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate, activationName)
 
+        if quantise:
+            hiddenWeights = quantisation(hiddenWeights, bitResolution)
+            outputWeights = quantisation(outputWeights, bitResolution)
+            hiddenBias = quantisation(hiddenBias, bitResolution)
+            outputBias = quantisation(outputBias, bitResolution)
+
         analyseTestSet(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
 
         testAccuracies = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
@@ -326,7 +348,7 @@ def main():
             'testAccuracies': testAccuracies
         }
 
-        exportWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
+        exportWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, activationName, testAccuracies)
 
     plotResults(results)
 

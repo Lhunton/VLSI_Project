@@ -1,6 +1,8 @@
 {
   "activationFunction": "ELU",
+  "testAccuracy": 0.9694444444444444,
   "nodeArchitecture": "64-64-10",
+  "bit resolution": 8,
   "hiddenWeights": [
     [
       0.09375,

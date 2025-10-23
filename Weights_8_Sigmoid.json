@@ -1,6 +1,8 @@
 {
   "activationFunction": "Sigmoid",
+  "testAccuracy": 0.9527777777777777,
   "nodeArchitecture": "64-64-10",
+  "bit resolution": 8,
   "hiddenWeights": [
     [
       0.1015625,
