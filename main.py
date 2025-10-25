@@ -25,6 +25,7 @@ learningRate = 0.14
 alpha = 1
 batchSize = 32
 epochs = 50
+bitResolutions = [16,14,12,10,8,6,4]
 bitResolution = 16
 quantise = True
 
@@ -219,63 +220,52 @@ def analyseTestSet(loader, hiddenWeights, outputWeights, hiddenBias, outputBias,
     if len(wrong_indices) > 0:
         print(f"Consistent error pattern: {len(set(wrong_indices)) == len(wrong_indices)}")
 
-def plotResults(all_results):
-    plt.figure(figsize=(15, 5))
-    
-    # Plot 1: Training Loss
-    plt.subplot(1, 3, 1)
-    colors = {'ELU': 'blue', 'ReLu': 'orange', 'Sigmoid': 'green'}
-    
-    for activation_name, results_dict in all_results.items():
-        plt.plot(results_dict['losses'], label=activation_name, linewidth=2, color=colors.get(activation_name, 'black'))
-    
-    plt.title('Training Loss Comparison')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Plot 2: Training Accuracy
-    plt.subplot(1, 3, 2)
-    for activation_name, results_dict in all_results.items():
-        plt.plot(results_dict['accuracies'], label=activation_name, linewidth=2, color=colors.get(activation_name, 'black'))
-    
-    plt.title('Training Accuracy Comparison')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.ylim(0, 1)  # Set consistent y-axis for accuracy
-    
-    # Plot 3: Final Test Accuracy
-    plt.subplot(1, 3, 3)
-    test_accuracies = [results_dict['testAccuracies'] for results_dict in all_results.values()]
-    activation_names = list(all_results.keys())
-    
-    # Use consistent colors
-    bar_colors = [colors.get(name, 'gray') for name in activation_names]
-    bars = plt.bar(activation_names, test_accuracies, color=bar_colors)
-    
-    plt.title('Final Test Accuracy Comparison')
-    plt.ylabel('Accuracy')
-    plt.ylim(0.9, 1.0)  # Zoom in to see differences better
-    
-    # Add value labels on bars
-    for bar, acc in zip(bars, test_accuracies):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.002, 
-                f'{acc:.4f}', ha='center', va='bottom', fontsize=10)
-    
-    plt.tight_layout()
+def plotResults(allResults):
+    plt.figure(figsize=(15,4))
+
+    #figure 1: training loss
+    activationColours = {'ELU': 'red', 'ReLu': 'green', 'Sigmoid': 'blue'}
+
+    for i, activation in enumerate(['ELU', 'ReLu', 'Sigmoid'], 1):
+        plt.subplot(3,3,i)
+        plt.title(f'{activation} Training Loss at Varying Resolution')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend
+        plt.grid(True)
+        for bits, bitLookup in allResults[activation].items():
+            plt.plot(bitLookup['losses'], label=f'{activation} {bits} bits', linewidth = 1, color = activationColours.get(activation, 'black'))
+
+    #figure 2: training accuracy
+    for i, activation in enumerate(['ELU', 'ReLu', 'Sigmoid'], 4):
+        plt.subplot(3,3,i)
+        plt.title(f'{activation} Training Accuracy at Varying Resolution')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend
+        plt.grid(True)
+        for bits, bitLookup in allResults[activation].items():
+            plt.plot(bitLookup['accuracies'], label=f'{activation} {bits} bits', linewidth = 1, color = activationColours.get(activation, 'black'))
+
+    #figure 3: Test accuracy
+    for i, activation in enumerate(['ELU', 'ReLu', 'Sigmoid'], 7):
+        bitData = []
+        testAccuracyData = []
+
+        plt.subplot(3,3,i)
+        plt.title(f'{activation} Test Accuracy at Varying Resolution')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend
+        plt.grid(True)
+        for bits, bitLookup in allResults[activation].items():
+            bitData.append(bits)
+            testAccuracyData.append(bitLookup['testAccuracies'])
+
+        plt.plot(bitData, testAccuracyData, marker='o', color = activationColours[activation], markersize = 4, linewidth = 1)
+
+    plt.tight_layout(pad=1.0, h_pad=0.01, w_pad=1.0)
     plt.show()
-    
-    # Print a summary table for clarity
-    print("\n" + "="*60)
-    print("SUMMARY OF RESULTS")
-    print("="*60)
-    for activation_name, results_dict in all_results.items():
-        final_train_acc = results_dict['accuracies'][-1] if results_dict['accuracies'] else 0
-        final_test_acc = results_dict['testAccuracies']
-        print(f"{activation_name:8} | Train Acc: {final_train_acc:.4f} | Test Acc: {final_test_acc:.4f} | Wrong Predictions: {360 - int(final_test_acc * 360)}")
 
 def exportWeights(hiddenWeight, outputWeights, hiddenBias, outputBias, activationName, testAccuracy, filename=""):
     
@@ -301,9 +291,11 @@ def exportWeights(hiddenWeight, outputWeights, hiddenBias, outputBias, activatio
 
 def quantisation(values, bits):
     levels = 2**bits
-    stepSize = 2/levels
+    stepSize = 2/(levels-1)
 
-    quantisedVals = np.floor(values/stepSize)*stepSize
+    clampedVals = torch.clamp(values, -1, 1)
+
+    quantisedVals = torch.round((clampedVals+1) / stepSize) * stepSize - 1
 
     return quantisedVals
 
@@ -326,29 +318,37 @@ def main():
         print(f"Training with {activationName} activation function")
         print(f"============================================================")
 
-        trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
+        results[activationName] = {}
 
-        hiddenWeights, outputWeights, hiddenBias, outputBias = startTraining()
+        for bits in bitResolutions:
+            print(f"Testing {bits} of resolution")
 
-        hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies = trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate, activationName)
+            bitResolution = bits
+        
 
-        if quantise:
-            hiddenWeights = quantisation(hiddenWeights, bitResolution)
-            outputWeights = quantisation(outputWeights, bitResolution)
-            hiddenBias = quantisation(hiddenBias, bitResolution)
-            outputBias = quantisation(outputBias, bitResolution)
+            trainingLoader, testLoader = dataloading(trainingTensorsx, trainingTensorsy, testingTensorsx, testingTensorsy)
 
-        analyseTestSet(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
+            hiddenWeights, outputWeights, hiddenBias, outputBias = startTraining()
 
-        testAccuracies = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
+            hiddenWeights, outputWeights, hiddenBias, outputBias, losses, accuracies = trainingLoop(trainingLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, learningRate, activationName)
 
-        results[activationName] = {
-            'losses': losses,
-            'accuracies': accuracies,
-            'testAccuracies': testAccuracies
-        }
+            if quantise:
+                hiddenWeights = quantisation(hiddenWeights, bitResolution)
+                outputWeights = quantisation(outputWeights, bitResolution)
+                hiddenBias = quantisation(hiddenBias, bitResolution)
+                outputBias = quantisation(outputBias, bitResolution)
 
-        exportWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, activationName, testAccuracies)
+            analyseTestSet(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
+
+            testAccuracies = evaluateModel(testLoader, hiddenWeights, outputWeights, hiddenBias, outputBias, activationName)
+
+            results[activationName][bits] = {
+                'losses': losses,
+                'accuracies': accuracies,
+                'testAccuracies': testAccuracies
+            }
+
+            exportWeights(hiddenWeights, outputWeights, hiddenBias, outputBias, activationName, testAccuracies)
 
     plotResults(results)
 
